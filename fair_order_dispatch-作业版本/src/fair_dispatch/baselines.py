@@ -5,10 +5,12 @@ import numpy as np
 
 def _active_zones(demand_by_zone: np.ndarray) -> np.ndarray:
     active = np.flatnonzero(demand_by_zone > 0)
+    # Fall back to all zones.
     return active if active.size else np.arange(demand_by_zone.size)
 
 
 def _probabilities_to_logits(matrix: np.ndarray) -> np.ndarray:
+    # Match the env action shape.
     clipped = np.clip(np.asarray(matrix, dtype=np.float32), 1e-12, 1.0)
     return np.log(clipped).reshape(-1).astype(np.float32)
 
@@ -22,6 +24,7 @@ def local_first_policy(
     active = _active_zones(demand_by_zone)
 
     for zone_idx in range(zone_count):
+        # Stay local when demand exists.
         if demand_by_zone[zone_idx] > 0:
             matrix[zone_idx, zone_idx] = 1.0
         else:
@@ -37,6 +40,7 @@ def demand_greedy_policy(
 ) -> np.ndarray:
     zone_count = demand_by_zone.size
     matrix = np.zeros((zone_count, zone_count), dtype=float)
+    # Send everyone to the busiest zone.
     target_zone = int(np.argmax(demand_by_zone))
     matrix[:, target_zone] = 1.0
     return matrix

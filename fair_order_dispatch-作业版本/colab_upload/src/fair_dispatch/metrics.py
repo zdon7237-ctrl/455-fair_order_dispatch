@@ -6,6 +6,7 @@ import numpy as np
 
 
 def gini_coefficient(values: np.ndarray) -> float:
+    # Work on sorted incomes.
     ordered = np.sort(np.asarray(values, dtype=float))
     if ordered.size == 0:
         return 0.0
@@ -20,6 +21,7 @@ def gini_coefficient(values: np.ndarray) -> float:
 
 
 def bottom_percent_mean(values: np.ndarray, *, share: float = 0.2) -> float:
+    # Slice the lower tail.
     incomes = np.sort(np.asarray(values, dtype=float))
     if incomes.size == 0:
         return 0.0

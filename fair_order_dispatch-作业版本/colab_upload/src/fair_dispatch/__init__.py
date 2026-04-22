@@ -8,6 +8,7 @@ from fair_dispatch.config import DEFAULT_CONFIG, DispatchConfig
 from fair_dispatch.environment import FairDispatchEnv
 from fair_dispatch.metrics import bottom_percent_mean, bottom20_income_mean, gini_coefficient
 
+# Re-export the main API.
 __all__ = [
     "DEFAULT_CONFIG",
     "DispatchConfig",

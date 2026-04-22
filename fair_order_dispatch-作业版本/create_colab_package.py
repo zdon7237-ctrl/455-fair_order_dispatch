@@ -1,39 +1,37 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-自动创建 Colab 上传包
-"""
+"""Build the Colab upload bundle."""
 
 import shutil
 from pathlib import Path
 
-# 项目根目录
+# Project paths.
 PROJECT_ROOT = Path(__file__).parent
 COLAB_DIR = PROJECT_ROOT / "colab_upload"
 
 print("📦 创建 Colab 上传包...")
 
-# 1. 清理旧文件
+# Reset the output folder.
 if COLAB_DIR.exists():
     print(f"  删除旧的 {COLAB_DIR.name} 文件夹...")
     shutil.rmtree(COLAB_DIR)
 
-# 2. 创建新文件夹
+# Create a fresh bundle.
 print(f"  创建 {COLAB_DIR.name} 文件夹...")
 COLAB_DIR.mkdir()
 
-# 3. 复制文件
+# Copy the project files.
 print("  复制文件...")
 
-# 复制 src 文件夹
+# Copy src.
 print("    - src/")
 shutil.copytree(PROJECT_ROOT / "src", COLAB_DIR / "src")
 
-# 复制 scripts 文件夹
+# Copy scripts.
 print("    - scripts/")
 shutil.copytree(PROJECT_ROOT / "scripts", COLAB_DIR / "scripts")
 
-# 复制 shock_calibration.json
+# Copy the frozen shock level.
 shock_file = PROJECT_ROOT / "results" / "shock_calibration.json"
 if shock_file.exists():
     print("    - shock_calibration.json")
@@ -41,7 +39,7 @@ if shock_file.exists():
 else:
     print("    ⚠️ shock_calibration.json 不存在，跳过")
 
-# 复制 requirements.txt
+# Copy requirements.
 req_file = PROJECT_ROOT / "requirements.txt"
 if req_file.exists():
     print("    - requirements.txt")

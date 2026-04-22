@@ -13,6 +13,7 @@ try:
     import gymnasium as gym
     from gymnasium import spaces
 except ImportError:  # pragma: no cover
+    # Keep tests running without gymnasium.
     class _FallbackEnv:
         pass
 
@@ -87,10 +88,12 @@ class FairDispatchEnv(gym.Env):
         elif self.seed is not None:
             self.rng = np.random.default_rng(self.seed)
 
+        # Reset episode state.
         self.current_step = 0
         self.episode_revenue = 0.0
         self.previous_gini = 0.0
         self.last_allocation_matrix = np.eye(self.config.zone_count, dtype=np.float32)
+        # Rebuild the starting zone split.
         self.driver_zones = np.concatenate(
             [
                 np.full(count, zone_idx, dtype=np.int32)
@@ -99,6 +102,7 @@ class FairDispatchEnv(gym.Env):
         )
         self.cumulative_income = np.zeros(self.config.driver_count, dtype=np.float32)
         if self._provided_demand_schedule is not None:
+            # Reuse a fixed test schedule.
             self.episode_demands = self._provided_demand_schedule.copy()
         else:
             self.episode_demands = sample_episode_demands(
@@ -118,6 +122,7 @@ class FairDispatchEnv(gym.Env):
             raise RuntimeError("Episode has already terminated. Call reset().")
 
         demand = self.episode_demands[self.current_step].copy()
+        # Turn logits into row-wise probabilities.
         allocation = self.action_logits_to_matrix(action)
         self.last_allocation_matrix = allocation
 
@@ -130,6 +135,7 @@ class FairDispatchEnv(gym.Env):
             driver_indices = np.flatnonzero(source_zones == zone_idx)
             if driver_indices.size == 0:
                 continue
+            # Sample where each driver tries to go.
             destinations = self.rng.choice(
                 self.config.zone_count,
                 size=driver_indices.size,
@@ -142,6 +148,7 @@ class FairDispatchEnv(gym.Env):
         updated_zones = source_zones.copy()
 
         for destination_zone, assigned_drivers in assignments.items():
+            # Matches cannot exceed local demand.
             max_matches = min(len(assigned_drivers), int(demand[destination_zone]))
             if max_matches == 0:
                 continue
@@ -156,6 +163,7 @@ class FairDispatchEnv(gym.Env):
         self.episode_revenue += float(fulfilled_orders)
         current_gini = gini_coefficient(self.cumulative_income)
         completion_rate = fulfilled_orders / max(1, int(demand.sum()))
+        # Trade off fill rate and fairness.
         reward = float(completion_rate - self.alpha * current_gini)
         self.previous_gini = current_gini
 
@@ -172,6 +180,7 @@ class FairDispatchEnv(gym.Env):
         logits = np.asarray(action, dtype=np.float32).reshape(
             self.config.zone_count, self.config.zone_count
         )
+        # Softmax each source row.
         logits = logits - logits.max(axis=1, keepdims=True)
         weights = np.exp(logits)
         return weights / weights.sum(axis=1, keepdims=True)
@@ -188,6 +197,7 @@ class FairDispatchEnv(gym.Env):
         return self.episode_demands[self.current_step].astype(np.float32)
 
     def _observation(self) -> np.ndarray:
+        # Pack drivers, demand, and context.
         return np.concatenate(
             [
                 self.available_drivers_by_zone,

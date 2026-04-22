@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-多种子实验脚本
-运行所有算法（基线和PPO）在不同随机种子下的实验
-"""
+"""Run multi-seed baseline and PPO experiments."""
 
 from __future__ import annotations
 
@@ -18,11 +15,10 @@ from typing import Any
 import numpy as np
 from tqdm.auto import tqdm
 
-# 自动检测设备（Colab 上使用 GPU，本地 AMD 显卡使用 CPU）
-# 注释掉强制 CPU 的代码，让 PyTorch 自动检测
-# os.environ["CUDA_VISIBLE_DEVICES"] = ""  # 已禁用，允许使用 GPU
+# Let PyTorch pick the device.
+# os.environ["CUDA_VISIBLE_DEVICES"] = ""  # Leave this off.
 
-# 添加项目路径
+# Use project-local imports.
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SRC_ROOT = PROJECT_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
@@ -33,23 +29,15 @@ from fair_dispatch.config import DEFAULT_CONFIG, DispatchConfig
 from fair_dispatch.environment import FairDispatchEnv
 
 
-# ============================================================================
-# 实验配置
-# ============================================================================
-
-# 随机种子列表
+# Experiment config
 SEEDS = [0, 42, 123, 456, 789]
 
-# 场景列表
 SCENES = ["normal", "shock"]
 
-# 基线算法列表
 BASELINE_ALGORITHMS = ["Local-First", "Demand-Greedy"]
 
-# PPO 的 alpha 值列表
 ALPHA_VALUES = [0.0, 0.1, 0.2, 0.4]
 
-# 结果字段
 RESULT_FIELDS = [
     "seed",
     "algorithm",
@@ -62,12 +50,8 @@ RESULT_FIELDS = [
 ]
 
 
-# ============================================================================
-# 辅助函数
-# ============================================================================
-
 def _load_ppo():
-    """加载 PPO 模型类"""
+    """Load PPO lazily."""
     try:
         from stable_baselines3 import PPO
     except ImportError as exc:
@@ -78,16 +62,12 @@ def _load_ppo():
 
 
 def load_shock_multiplier(calibration_path: Path) -> int:
-    """从校准文件加载 shock multiplier"""
+    """Read the frozen shock level."""
     if not calibration_path.exists():
         return DEFAULT_CONFIG.shock_multiplier
     payload = json.loads(calibration_path.read_text(encoding="utf-8"))
     return int(payload["frozen_multiplier"])
 
-
-# ============================================================================
-# 基线算法运行函数
-# ============================================================================
 
 def run_baseline(
     policy_name: str,
@@ -97,19 +77,7 @@ def run_baseline(
     config: DispatchConfig = DEFAULT_CONFIG,
     shock_multiplier: int | None = None,
 ) -> dict[str, Any]:
-    """
-    运行基线算法
-
-    参数:
-        policy_name: 策略名称 ("Local-First" 或 "Demand-Greedy")
-        scene: 场景名称 ("normal" 或 "shock")
-        seed: 随机种子
-        config: 配置对象
-        shock_multiplier: shock 倍数（可选）
-
-    返回:
-        包含实验结果的字典
-    """
+    """Run one baseline rollout."""
     env = FairDispatchEnv(
         config=config,
         scene=scene,
@@ -144,10 +112,6 @@ def run_baseline(
     }
 
 
-# ============================================================================
-# PPO 算法运行函数
-# ============================================================================
-
 def run_ppo(
     alpha: float,
     scene: str,
@@ -158,25 +122,11 @@ def run_ppo(
     config: DispatchConfig = DEFAULT_CONFIG,
     show_progress: bool = True,
 ) -> dict[str, Any]:
-    """
-    训练并评估 PPO 算法
-
-    参数:
-        alpha: 公平性权重
-        scene: 场景名称 ("normal" 或 "shock")
-        seed: 随机种子
-        total_timesteps: 训练总步数
-        shock_multiplier: shock 倍数
-        config: 配置对象
-        show_progress: 是否显示训练进度条
-
-    返回:
-        包含实验结果的字典
-    """
+    """Train and score one PPO run."""
     PPO = _load_ppo()
     from stable_baselines3.common.callbacks import BaseCallback
 
-    # 创建环境
+    # Build the env once.
     env = FairDispatchEnv(
         config=config,
         scene=scene,
@@ -184,7 +134,7 @@ def run_ppo(
         shock_multiplier=shock_multiplier,
     )
 
-    # 创建进度条回调
+    # Keep the progress bar light.
     class TqdmCallback(BaseCallback):
         def __init__(self, total_timesteps: int, desc: str = "Training"):
             super().__init__()
@@ -205,12 +155,12 @@ def run_ppo(
             if self.pbar:
                 self.pbar.close()
 
-    # 训练 PPO 模型（自动检测设备：GPU 或 CPU）
+    # Train first.
     model = PPO("MlpPolicy", env, verbose=0, seed=seed, device="auto")
     callback = TqdmCallback(total_timesteps, desc=f"PPO α={alpha} {scene}")
     model.learn(total_timesteps=total_timesteps, callback=callback)
 
-    # 评估模型
+    # Then score one episode.
     observation, info = env.reset(seed=seed)
     completion_rates: list[float] = []
     terminated = False
@@ -232,28 +182,14 @@ def run_ppo(
     }
 
 
-# ============================================================================
-# 主实验函数
-# ============================================================================
-
 def run_all_experiments(
     *,
     total_timesteps: int = 20000,
     calibration_path: Path | None = None,
     config: DispatchConfig = DEFAULT_CONFIG,
 ) -> list[dict[str, Any]]:
-    """
-    运行所有实验组合
-
-    参数:
-        total_timesteps: PPO 训练总步数
-        calibration_path: 校准文件路径
-        config: 配置对象
-
-    返回:
-        所有实验结果的列表
-    """
-    # 加载 shock multiplier
+    """Run the full seed sweep."""
+    # Load the frozen shock level.
     if calibration_path and calibration_path.exists():
         shock_multiplier = load_shock_multiplier(calibration_path)
     else:
@@ -266,7 +202,7 @@ def run_all_experiments(
     print(f"PPO alpha 值: {ALPHA_VALUES}")
     print()
 
-    # 计算总实验数
+    # Count the workload.
     baseline_count = len(BASELINE_ALGORITHMS) * len(SCENES) * len(SEEDS)
     ppo_count = len(ALPHA_VALUES) * len(SCENES) * len(SEEDS)
     total_count = baseline_count + ppo_count
@@ -278,7 +214,7 @@ def run_all_experiments(
 
     results = []
 
-    # 运行基线算法实验
+    # Baseline sweep.
     print("=" * 70)
     print("开始运行基线算法实验")
     print("=" * 70)
@@ -300,7 +236,7 @@ def run_all_experiments(
         )
         results.append(result)
 
-    # 运行 PPO 实验
+    # PPO sweep.
     print()
     print("=" * 70)
     print("开始运行 PPO 实验")
@@ -334,13 +270,7 @@ def run_all_experiments(
 
 
 def write_results(results: list[dict[str, Any]], output_path: Path) -> None:
-    """
-    将结果写入 CSV 文件
-
-    参数:
-        results: 实验结果列表
-        output_path: 输出文件路径
-    """
+    """Write rows to CSV."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=RESULT_FIELDS)
@@ -348,13 +278,8 @@ def write_results(results: list[dict[str, Any]], output_path: Path) -> None:
         writer.writerows(results)
     print(f"结果已保存到: {output_path}")
 
-
-# ============================================================================
-# 主函数
-# ============================================================================
-
 def main() -> None:
-    """主函数"""
+    """CLI entry point."""
     default_results_dir = PROJECT_ROOT / "results"
 
     parser = argparse.ArgumentParser(description="运行多种子实验")
@@ -385,7 +310,7 @@ def main() -> None:
     print(f"校准文件: {args.calibration_input}")
     print(f"PPO 训练步数: {args.total_timesteps}")
 
-    # 检测并显示实际使用的设备
+    # Show the detected device.
     try:
         import torch
         if torch.cuda.is_available():
@@ -397,13 +322,13 @@ def main() -> None:
         print(f"设备: CPU (PyTorch 未安装)")
     print()
 
-    # 运行所有实验
+    # Run the sweep.
     results = run_all_experiments(
         total_timesteps=args.total_timesteps,
         calibration_path=args.calibration_input,
     )
 
-    # 保存结果
+    # Save the rows.
     write_results(results, args.output)
 
     print()

@@ -1,9 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-统计分析脚本
-对多种子实验结果进行统计分析和显著性检验
-"""
+"""Summarize multi-seed results and plot error bars."""
 
 from __future__ import annotations
 
@@ -18,7 +15,7 @@ import numpy as np
 import pandas as pd
 from scipy.stats import ttest_ind
 
-# 配置项目路径
+# Use project-local imports.
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SRC_ROOT = PROJECT_ROOT / "src"
 if str(SRC_ROOT) not in sys.path:
@@ -26,24 +23,13 @@ if str(SRC_ROOT) not in sys.path:
 
 from fair_dispatch.config import DEFAULT_CONFIG
 
-# 配置中文字体
+# Keep Chinese labels visible.
 plt.rcParams['font.sans-serif'] = ['Microsoft YaHei', 'SimHei', 'Arial Unicode MS']
 plt.rcParams['axes.unicode_minus'] = False
 
 
 def load_results(file_path: Path) -> pd.DataFrame:
-    """
-    加载实验结果
-
-    Args:
-        file_path: CSV文件路径
-
-    Returns:
-        包含实验结果的DataFrame
-
-    Raises:
-        FileNotFoundError: 如果文件不存在
-    """
+    """Load the experiment rows."""
     if not file_path.exists():
         raise FileNotFoundError(f"结果文件不存在: {file_path}")
 
@@ -53,32 +39,20 @@ def load_results(file_path: Path) -> pd.DataFrame:
 
 
 def compute_statistics(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    计算每个算法×场景×alpha组合的统计量
-
-    Args:
-        df: 原始实验结果DataFrame
-
-    Returns:
-        包含统计量的DataFrame，列包括：
-        - algorithm, scene, alpha (分组键)
-        - revenue_mean, revenue_std, revenue_sem
-        - gini_mean, gini_std, gini_sem
-        - n_samples (样本数量)
-    """
-    # 定义分组键
+    """Aggregate mean, std, and sem."""
+    # Group by algorithm and scene.
     group_keys = ['algorithm', 'scene']
 
-    # 对于PPO算法，需要包含alpha参数
+    # Add alpha only for PPO.
     if 'alpha' in df.columns:
-        # 为非PPO算法填充alpha为None
+        # Leave baseline alpha empty.
         df_copy = df.copy()
         df_copy.loc[df_copy['algorithm'] != 'PPO', 'alpha'] = None
         group_keys.append('alpha')
     else:
         df_copy = df
 
-    # 计算统计量
+    # Collect summary stats.
     stats_list = []
 
     for group_name, group_df in df_copy.groupby(group_keys, dropna=False):
@@ -101,19 +75,19 @@ def compute_statistics(df: pd.DataFrame) -> pd.DataFrame:
         if alpha is not None:
             stats['alpha'] = alpha
 
-        # 计算收入统计量
+        # Revenue summary.
         if 'episode_revenue' in group_df.columns:
             stats['revenue_mean'] = group_df['episode_revenue'].mean()
             stats['revenue_std'] = group_df['episode_revenue'].std()
             stats['revenue_sem'] = group_df['episode_revenue'].sem()
 
-        # 计算基尼系数统计量
+        # Fairness summary.
         if 'final_episode_gini' in group_df.columns:
             stats['gini_mean'] = group_df['final_episode_gini'].mean()
             stats['gini_std'] = group_df['final_episode_gini'].std()
             stats['gini_sem'] = group_df['final_episode_gini'].sem()
 
-        # 样本数量
+        # Sample count.
         stats['n_samples'] = len(group_df)
 
         stats_list.append(stats)
@@ -124,33 +98,22 @@ def compute_statistics(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def significance_tests(df: pd.DataFrame, alpha_value: float = 0.2) -> pd.DataFrame:
-    """
-    进行统计显著性检验
-
-    比较 PPO (alpha=alpha_value) 与基线算法的差异
-
-    Args:
-        df: 原始实验结果DataFrame
-        alpha_value: PPO的alpha参数值
-
-    Returns:
-        包含显著性检验结果的DataFrame
-    """
+    """Compare PPO against the baselines."""
     results = []
 
-    # 获取PPO (alpha=alpha_value) 的数据
+    # Pick one PPO alpha.
     if 'alpha' in df.columns:
         ppo_df = df[(df['algorithm'] == 'PPO') & (df['alpha'].astype(float).round(1) == alpha_value)]
     else:
         ppo_df = df[df['algorithm'] == 'PPO']
 
-    # 基线算法列表
+    # Fixed baselines.
     baseline_algorithms = ['Local-First', 'Demand-Greedy']
 
-    # 场景列表
+    # Check every scene.
     scenes = df['scene'].unique()
 
-    # 指标列表
+    # Test the available metrics.
     metrics = []
     if 'episode_revenue' in df.columns:
         metrics.append(('episode_revenue', '平台收入'))
@@ -171,10 +134,10 @@ def significance_tests(df: pd.DataFrame, alpha_value: float = 0.2) -> pd.DataFra
                 ppo_values = ppo_scene[metric_col].values
                 baseline_values = baseline_scene[metric_col].values
 
-                # 进行独立样本t检验
+                # Two-sample t-test.
                 t_stat, p_value = ttest_ind(ppo_values, baseline_values)
 
-                # 计算效应量 (Cohen's d)
+                # Cohen's d.
                 pooled_std = np.sqrt(
                     ((len(ppo_values) - 1) * np.var(ppo_values, ddof=1) +
                      (len(baseline_values) - 1) * np.var(baseline_values, ddof=1)) /
@@ -204,22 +167,10 @@ def significance_tests(df: pd.DataFrame, alpha_value: float = 0.2) -> pd.DataFra
 
 
 def plot_with_error_bars(summary_df: pd.DataFrame, output_dir: Path) -> None:
-    """
-    绘制带误差棒的图表
-
-    生成4张图表：
-    1. 不同场景下的平台收入对比（带误差棒）
-    2. 不同场景下的基尼系数对比（带误差棒）
-    3. PPO的alpha参数权衡分析（带误差棒）
-    4. 收入分布CDF（需要原始数据，此处暂不实现）
-
-    Args:
-        summary_df: 统计汇总DataFrame
-        output_dir: 输出目录
-    """
+    """Build the summary figures."""
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # 筛选主要结果（PPO只保留alpha=0.2）
+    # Keep the main PPO setting.
     primary_df = summary_df.copy()
     if 'alpha' in primary_df.columns:
         primary_df = primary_df[
@@ -227,15 +178,15 @@ def plot_with_error_bars(summary_df: pd.DataFrame, output_dir: Path) -> None:
             (primary_df['alpha'].astype(float).round(1) == 0.2)
         ]
 
-    # 图1: 不同场景下的平台收入对比
+    # Revenue bars.
     if 'revenue_mean' in primary_df.columns:
         plot_revenue_comparison(primary_df, output_dir)
 
-    # 图2: 不同场景下的基尼系数对比
+    # Gini bars.
     if 'gini_mean' in primary_df.columns:
         plot_gini_comparison(primary_df, output_dir)
 
-    # 图3: PPO的alpha参数权衡分析
+    # Alpha trade-off plot.
     if 'alpha' in summary_df.columns:
         ppo_df = summary_df[summary_df['algorithm'] == 'PPO']
         if len(ppo_df) > 0:
@@ -245,7 +196,7 @@ def plot_with_error_bars(summary_df: pd.DataFrame, output_dir: Path) -> None:
 
 
 def plot_revenue_comparison(df: pd.DataFrame, output_dir: Path) -> None:
-    """绘制平台收入对比图（带误差棒）"""
+    """Plot revenue with error bars."""
     scenes = df['scene'].unique()
     algorithms = df[df['scene'] == scenes[0]]['algorithm'].unique()
 
@@ -278,7 +229,7 @@ def plot_revenue_comparison(df: pd.DataFrame, output_dir: Path) -> None:
 
 
 def plot_gini_comparison(df: pd.DataFrame, output_dir: Path) -> None:
-    """绘制基尼系数对比图（带误差棒）"""
+    """Plot Gini with error bars."""
     scenes = df['scene'].unique()
     algorithms = df[df['scene'] == scenes[0]]['algorithm'].unique()
 
@@ -311,8 +262,8 @@ def plot_gini_comparison(df: pd.DataFrame, output_dir: Path) -> None:
 
 
 def plot_alpha_tradeoff_with_errors(ppo_df: pd.DataFrame, output_dir: Path) -> None:
-    """绘制PPO的alpha参数权衡分析图（带误差棒）"""
-    # 只绘制shock场景
+    """Plot the PPO trade-off curve."""
+    # Only use shock runs.
     shock_df = ppo_df[ppo_df['scene'] == 'shock'].copy()
 
     if len(shock_df) == 0:
@@ -348,12 +299,12 @@ def plot_alpha_tradeoff_with_errors(ppo_df: pd.DataFrame, output_dir: Path) -> N
 
 
 def main() -> None:
-    """主函数"""
-    # 设置默认路径
+    """CLI entry point."""
+    # Default paths.
     default_results_dir = PROJECT_ROOT / "results"
     default_figures_dir = PROJECT_ROOT / "figures"
 
-    # 解析命令行参数
+    # Parse CLI args.
     parser = argparse.ArgumentParser(
         description='对多种子实验结果进行统计分析和显著性检验'
     )
@@ -389,42 +340,42 @@ def main() -> None:
     print("=" * 60)
 
     try:
-        # 1. 加载实验结果
+        # 1. Load the rows.
         print("\n[1/5] 加载实验结果...")
         df = load_results(args.input)
         print(f"  数据形状: {df.shape}")
         print(f"  列名: {list(df.columns)}")
 
-        # 2. 计算统计量
+        # 2. Aggregate stats.
         print("\n[2/5] 计算统计量...")
         summary_df = compute_statistics(df)
 
-        # 保存统计汇总
+        # Save the summary.
         summary_path = args.output_dir / 'statistical_summary.csv'
         summary_df.to_csv(summary_path, index=False, encoding='utf-8-sig')
         print(f"  ✓ 统计汇总已保存: {summary_path}")
 
-        # 3. 进行显著性检验
+        # 3. Run the tests.
         print("\n[3/5] 进行显著性检验...")
         test_df = significance_tests(df, alpha_value=args.alpha)
 
-        # 保存显著性检验结果
+        # Save the test output.
         test_path = args.output_dir / 'significance_tests.csv'
         test_df.to_csv(test_path, index=False, encoding='utf-8-sig')
         print(f"  ✓ 显著性检验结果已保存: {test_path}")
 
-        # 打印关键结果
+        # Print the headline results.
         print("\n  关键发现:")
         for _, row in test_df.iterrows():
             sig_mark = "***" if row['p_value'] < 0.001 else "**" if row['p_value'] < 0.01 else "*" if row['p_value'] < 0.05 else ""
             print(f"    {row['scene']} - {row['metric']}: {row['comparison']}")
             print(f"      t={row['t_statistic']:.3f}, p={row['p_value']:.4f} {sig_mark}, d={row['cohens_d']:.3f}")
 
-        # 4. 绘制图表
+        # 4. Draw the figures.
         print("\n[4/5] 绘制带误差棒的图表...")
         plot_with_error_bars(summary_df, args.figures_dir)
 
-        # 5. 完成
+        # 5. Finish up.
         print("\n[5/5] 分析完成!")
         print("=" * 60)
         print(f"\n输出文件:")

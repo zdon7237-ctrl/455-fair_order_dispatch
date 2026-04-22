@@ -21,6 +21,7 @@ def build_normal_demand_schedule(
     *,
     seed: int | None = None,
 ) -> np.ndarray:
+    # Sample one full episode.
     rng = np.random.default_rng(seed)
     return rng.poisson(
         lam=np.asarray(config.base_lambda, dtype=float),
@@ -36,6 +37,7 @@ def build_shock_demand_schedule(
 ) -> np.ndarray:
     demands = build_normal_demand_schedule(config, seed=seed)
     multiplier = shock_multiplier or config.shock_multiplier
+    # Boost one zone inside the window.
     demands[config.shock_start : config.shock_end + 1, config.shock_zone] *= multiplier
     return demands
 
@@ -47,6 +49,7 @@ def sample_episode_demands(
     seed: int | None = None,
     shock_multiplier: int | None = None,
 ) -> np.ndarray:
+    # Switch by scene.
     if scene == "normal":
         return build_normal_demand_schedule(config, seed=seed)
     if scene == "shock":
@@ -64,6 +67,7 @@ def shock_flag_for_step(
     config: DispatchConfig = DEFAULT_CONFIG,
     scene: str = "normal",
 ) -> float:
+    # Mark the shock window.
     if scene != "shock":
         return 0.0
     return float(config.shock_start <= step_index <= config.shock_end)
@@ -83,6 +87,7 @@ def calibrate_shock_multiplier(
         if promoted_multiplier is None
         else promoted_multiplier
     )
+    # Compare the normal-vs-shock gap.
     gaps: list[float] = []
     for values in baseline_completion_rates.values():
         if isinstance(values, Mapping):
@@ -90,6 +95,7 @@ def calibrate_shock_multiplier(
         else:
             gaps.append(float(values))
 
+    # Promote only if every gap stays small.
     should_promote = all(gap < threshold for gap in gaps)
     return CalibrationDecision(
         original_multiplier=original,

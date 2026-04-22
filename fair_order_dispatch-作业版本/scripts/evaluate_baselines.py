@@ -38,6 +38,7 @@ def rollout_baseline(
     seed: int = 0,
     shock_multiplier: int | None = None,
 ) -> tuple[dict[str, float | str], list[float]]:
+    # Roll one baseline episode.
     env = FairDispatchEnv(
         config=config,
         scene=scene,
@@ -49,6 +50,7 @@ def rollout_baseline(
     terminated = False
 
     while not terminated:
+        # Demand sits in the middle slice.
         demand = observation[config.zone_count : config.zone_count * 2]
         if policy_name == "Local-First":
             action = local_first_logits(demand)
@@ -78,6 +80,7 @@ def calibrate_multiplier(
     *,
     config: DispatchConfig = DEFAULT_CONFIG,
 ) -> CalibrationDecision:
+    # Measure the normal-vs-shock drop.
     normal_by_algorithm = {row["algorithm"]: row for row in normal_rows}
     gaps = {}
     for shock_row in shock_rows:
@@ -89,6 +92,7 @@ def calibrate_multiplier(
 
 
 def write_results(rows: list[dict[str, float | str]], output_path: Path) -> None:
+    # Save summary rows.
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=RESULT_FIELDS)
@@ -97,6 +101,7 @@ def write_results(rows: list[dict[str, float | str]], output_path: Path) -> None
 
 
 def write_calibration(calibration: CalibrationDecision, output_path: Path) -> None:
+    # Save the frozen shock setting.
     output_path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "original_multiplier": calibration.original_multiplier,
@@ -110,6 +115,7 @@ def write_calibration(calibration: CalibrationDecision, output_path: Path) -> No
 def write_income_snapshot(
     incomes_by_algorithm: dict[str, list[float]], output_path: Path
 ) -> None:
+    # Save shock incomes for the CDF.
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=["algorithm", "driver_index", "income"])
@@ -146,6 +152,7 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
 
+    # Run normal first.
     normal_results = [
         rollout_baseline("Local-First", "normal", seed=args.seed),
         rollout_baseline("Demand-Greedy", "normal", seed=args.seed),
@@ -159,6 +166,7 @@ def main() -> None:
 
     calibration = calibrate_multiplier(normal_rows, shock_rows)
     if calibration.promoted:
+        # Re-run shock with the promoted multiplier.
         shock_results = [
             rollout_baseline(
                 "Local-First",

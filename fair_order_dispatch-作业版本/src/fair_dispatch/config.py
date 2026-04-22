@@ -19,6 +19,7 @@ class DispatchConfig:
     primary_alpha: float = 0.2
 
     def __post_init__(self) -> None:
+        # Keep vector sizes aligned.
         if self.zone_count != len(self.base_lambda):
             raise ValueError("zone_count must match base_lambda length")
         if self.zone_count != len(self.initial_drivers):
@@ -29,6 +30,7 @@ class DispatchConfig:
             raise ValueError("horizon must be positive")
         if not 0 <= self.shock_zone < self.zone_count:
             raise ValueError("shock_zone must be within the configured zones")
+        # Keep the shock window in range.
         clamped_start = min(self.shock_start, self.horizon - 1)
         clamped_end = min(max(clamped_start, self.shock_end), self.horizon - 1)
         object.__setattr__(self, "shock_start", clamped_start)

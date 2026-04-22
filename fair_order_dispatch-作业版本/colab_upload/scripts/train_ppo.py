@@ -28,6 +28,7 @@ RESULT_FIELDS = [
 
 
 def _load_ppo():
+    # Import PPO only when needed.
     try:
         from stable_baselines3 import PPO
     except ImportError as exc:  # pragma: no cover
@@ -38,6 +39,7 @@ def _load_ppo():
 
 
 def load_shock_multiplier(calibration_path: Path) -> int:
+    # Keep runs aligned with calibration.
     if not calibration_path.exists():
         return DEFAULT_CONFIG.shock_multiplier
     payload = json.loads(calibration_path.read_text(encoding="utf-8"))
@@ -57,6 +59,7 @@ def train_and_evaluate_ppo(
     PPO = _load_ppo()
     from stable_baselines3.common.callbacks import BaseCallback
 
+    # Train one scene/alpha pair.
     env = FairDispatchEnv(
         config=config,
         scene=scene,
@@ -64,7 +67,7 @@ def train_and_evaluate_ppo(
         shock_multiplier=shock_multiplier,
     )
 
-    # 创建进度条回调
+    # Show progress without extra logs.
     class TqdmCallback(BaseCallback):
         def __init__(self, total_timesteps: int, desc: str = "Training"):
             super().__init__()
@@ -85,6 +88,7 @@ def train_and_evaluate_ppo(
             if self.pbar:
                 self.pbar.close()
 
+    # Train first, then score once.
     model = PPO("MlpPolicy", env, verbose=0, seed=seed)
     callback = TqdmCallback(total_timesteps, desc=f"PPO α={alpha} {scene}")
     model.learn(total_timesteps=total_timesteps, callback=callback)
@@ -111,6 +115,7 @@ def train_and_evaluate_ppo(
 
 
 def write_results(rows: list[dict[str, float | str]], output_path: Path) -> None:
+    # Save run summaries.
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=RESULT_FIELDS)
@@ -121,6 +126,7 @@ def write_results(rows: list[dict[str, float | str]], output_path: Path) -> None
 def write_income_snapshot(
     rows_with_incomes: list[tuple[dict[str, float | str], list[float]]], output_path: Path
 ) -> None:
+    # Keep only shock incomes.
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(
@@ -174,6 +180,7 @@ def main() -> None:
         for scene in ("normal", "shock")
     ]
 
+    # Sweep every scene/alpha pair.
     for alpha, scene in tqdm(experiments, desc="训练 PPO", unit="exp"):
         rows_with_incomes.append(
             train_and_evaluate_ppo(
