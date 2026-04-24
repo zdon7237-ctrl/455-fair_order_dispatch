@@ -1,0 +1,2 @@
+algorithm,scene,alpha,episode_revenue,final_episode_gini,final_episode_bottom20_income_mean,mean_completion_rate
+PPO,shock,0.2,1237.0,0.0715305847480463,16.833333333333332,0.8607275488134183
