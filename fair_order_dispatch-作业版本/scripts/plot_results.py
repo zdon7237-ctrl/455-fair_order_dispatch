@@ -1,3 +1,8 @@
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/scripts/plot_results.py
+=======
+"""Small plotting helper for the saved CSV results."""
+
+>>>>>>> Stashed changes:submission_ready/scripts/plot_results.py
 from __future__ import annotations
 
 import argparse
@@ -17,6 +22,10 @@ from fair_dispatch.config import DEFAULT_CONFIG
 
 
 def read_rows(path: Path) -> list[dict[str, str]]:
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/scripts/plot_results.py
+=======
+    # Missing files mean no rows.
+>>>>>>> Stashed changes:submission_ready/scripts/plot_results.py
     if not path.exists():
         return []
     with path.open("r", newline="", encoding="utf-8") as handle:
@@ -29,6 +38,10 @@ def _float(row: dict[str, str], key: str) -> float:
 
 
 def _primary_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/scripts/plot_results.py
+=======
+    # Keep the main PPO setting.
+>>>>>>> Stashed changes:submission_ready/scripts/plot_results.py
     primary = []
     for row in rows:
         if row["algorithm"] != "PPO":
@@ -39,8 +52,16 @@ def _primary_rows(rows: list[dict[str, str]]) -> list[dict[str, str]]:
 
 
 def plot_revenue_by_scene(rows: list[dict[str, str]], output_dir: Path) -> None:
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/scripts/plot_results.py
     output_dir.mkdir(parents=True, exist_ok=True)
     filtered = _primary_rows(rows)
+=======
+    """Compare total completed orders in normal and shock scenes."""
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    filtered = _primary_rows(rows)
+    # Keep one algorithm order.
+>>>>>>> Stashed changes:submission_ready/scripts/plot_results.py
     algorithms = [row["algorithm"] for row in filtered if row["scene"] == "normal"]
     normal = [_float(row, "episode_revenue") for row in filtered if row["scene"] == "normal"]
     shock = [_float(row, "episode_revenue") for row in filtered if row["scene"] == "shock"]
@@ -58,7 +79,14 @@ def plot_revenue_by_scene(rows: list[dict[str, str]], output_dir: Path) -> None:
 
 
 def plot_gini_by_scene(rows: list[dict[str, str]], output_dir: Path) -> None:
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/scripts/plot_results.py
     filtered = _primary_rows(rows)
+=======
+    """Compare final driver-income Gini in normal and shock scenes."""
+
+    filtered = _primary_rows(rows)
+    # Reuse the revenue order.
+>>>>>>> Stashed changes:submission_ready/scripts/plot_results.py
     algorithms = [row["algorithm"] for row in filtered if row["scene"] == "normal"]
     normal = [_float(row, "final_episode_gini") for row in filtered if row["scene"] == "normal"]
     shock = [_float(row, "final_episode_gini") for row in filtered if row["scene"] == "shock"]
@@ -76,6 +104,12 @@ def plot_gini_by_scene(rows: list[dict[str, str]], output_dir: Path) -> None:
 
 
 def plot_alpha_tradeoff(rows: list[dict[str, str]], output_dir: Path) -> None:
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/scripts/plot_results.py
+=======
+    """Plot the PPO revenue/fairness trade-off for the shock scene."""
+
+    # Plot only PPO shock runs.
+>>>>>>> Stashed changes:submission_ready/scripts/plot_results.py
     ppo_rows = [row for row in rows if row["algorithm"] == "PPO" and row["scene"] == "shock"]
     plt.figure(figsize=(6, 4))
     for row in ppo_rows:
@@ -93,9 +127,18 @@ def plot_alpha_tradeoff(rows: list[dict[str, str]], output_dir: Path) -> None:
 
 
 def plot_income_cdf(rows: list[dict[str, str]], output_dir: Path) -> None:
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/scripts/plot_results.py
     grouped: dict[str, list[float]] = defaultdict(list)
     for row in rows:
         algorithm = row["algorithm"]
+=======
+    """Plot the one-run driver income distribution used in the report."""
+
+    grouped: dict[str, list[float]] = defaultdict(list)
+    for row in rows:
+        algorithm = row["algorithm"]
+        # Keep only the main PPO config.
+>>>>>>> Stashed changes:submission_ready/scripts/plot_results.py
         if algorithm == "PPO" and row.get("alpha") not in {"0.2", "0.20000000000000001"}:
             continue
         if algorithm == "PPO":
@@ -150,7 +193,13 @@ def main() -> None:
 
     baseline_rows = read_rows(args.baseline_results)
     ppo_rows = read_rows(args.ppo_results)
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/scripts/plot_results.py
     all_rows = baseline_rows + ppo_rows
+=======
+    # Merge rollout summaries for the bar charts.
+    all_rows = baseline_rows + ppo_rows
+    # Merge shock incomes for the CDF.
+>>>>>>> Stashed changes:submission_ready/scripts/plot_results.py
     income_rows = read_rows(args.baseline_incomes) + read_rows(args.ppo_incomes)
 
     plot_revenue_by_scene(all_rows, args.output_dir)

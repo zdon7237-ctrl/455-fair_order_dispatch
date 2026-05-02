@@ -1,3 +1,8 @@
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/src/fair_dispatch/config.py
+=======
+"""Shared settings for the small dispatch simulator."""
+
+>>>>>>> Stashed changes:submission_ready/src/fair_dispatch/config.py
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -5,6 +10,11 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class DispatchConfig:
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/src/fair_dispatch/config.py
+=======
+    """Keep the experiment numbers in one place so scripts do not drift."""
+
+>>>>>>> Stashed changes:submission_ready/src/fair_dispatch/config.py
     zone_count: int = 6
     driver_count: int = 60
     horizon: int = 40
@@ -19,6 +29,10 @@ class DispatchConfig:
     primary_alpha: float = 0.2
 
     def __post_init__(self) -> None:
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/src/fair_dispatch/config.py
+=======
+        # Keep vector sizes aligned.
+>>>>>>> Stashed changes:submission_ready/src/fair_dispatch/config.py
         if self.zone_count != len(self.base_lambda):
             raise ValueError("zone_count must match base_lambda length")
         if self.zone_count != len(self.initial_drivers):
@@ -29,6 +43,10 @@ class DispatchConfig:
             raise ValueError("horizon must be positive")
         if not 0 <= self.shock_zone < self.zone_count:
             raise ValueError("shock_zone must be within the configured zones")
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/src/fair_dispatch/config.py
+=======
+        # Keep the shock window in range.
+>>>>>>> Stashed changes:submission_ready/src/fair_dispatch/config.py
         clamped_start = min(self.shock_start, self.horizon - 1)
         clamped_end = min(max(clamped_start, self.shock_end), self.horizon - 1)
         object.__setattr__(self, "shock_start", clamped_start)

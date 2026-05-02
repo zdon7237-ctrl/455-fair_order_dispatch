@@ -22,8 +22,14 @@ class _FakePPO:
         self.verbose = verbose
         self.seed = seed
 
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/tests/test_train_ppo.py
     def learn(self, total_timesteps):
         self.total_timesteps = total_timesteps
+=======
+    def learn(self, total_timesteps, callback=None):
+        self.total_timesteps = total_timesteps
+        self.callback = callback
+>>>>>>> Stashed changes:submission_ready/tests/test_train_ppo.py
         return self
 
     def predict(self, observation, deterministic=True):

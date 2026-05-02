@@ -1,3 +1,8 @@
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/src/fair_dispatch/metrics.py
+=======
+"""Fairness metrics for driver income at the end of an episode."""
+
+>>>>>>> Stashed changes:submission_ready/src/fair_dispatch/metrics.py
 from __future__ import annotations
 
 import math
@@ -6,6 +11,12 @@ import numpy as np
 
 
 def gini_coefficient(values: np.ndarray) -> float:
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/src/fair_dispatch/metrics.py
+=======
+    """Return 0 for equal incomes and closer to 1 when income is more uneven."""
+
+    # Work on sorted incomes.
+>>>>>>> Stashed changes:submission_ready/src/fair_dispatch/metrics.py
     ordered = np.sort(np.asarray(values, dtype=float))
     if ordered.size == 0:
         return 0.0
@@ -20,6 +31,12 @@ def gini_coefficient(values: np.ndarray) -> float:
 
 
 def bottom_percent_mean(values: np.ndarray, *, share: float = 0.2) -> float:
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/src/fair_dispatch/metrics.py
+=======
+    """Average the lower-income slice of drivers."""
+
+    # Slice the lower tail.
+>>>>>>> Stashed changes:submission_ready/src/fair_dispatch/metrics.py
     incomes = np.sort(np.asarray(values, dtype=float))
     if incomes.size == 0:
         return 0.0
@@ -30,4 +47,9 @@ def bottom_percent_mean(values: np.ndarray, *, share: float = 0.2) -> float:
 
 
 def bottom20_income_mean(values: np.ndarray) -> float:
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/src/fair_dispatch/metrics.py
+=======
+    """Small helper for the bottom 20% metric used in the report."""
+
+>>>>>>> Stashed changes:submission_ready/src/fair_dispatch/metrics.py
     return bottom_percent_mean(values, share=0.2)

@@ -1,3 +1,8 @@
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/scripts/train_ppo.py
+=======
+"""Train PPO on the dispatch simulator and save one scored rollout."""
+
+>>>>>>> Stashed changes:submission_ready/scripts/train_ppo.py
 from __future__ import annotations
 
 import argparse
@@ -5,7 +10,29 @@ import csv
 import json
 from pathlib import Path
 import sys
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/scripts/train_ppo.py
 from tqdm.auto import tqdm
+=======
+
+try:
+    from tqdm.auto import tqdm
+except ImportError:  # pragma: no cover
+    class _NoOpTqdm:
+        def __init__(self, iterable=None, *args, **kwargs):
+            self.iterable = iterable
+
+        def __iter__(self):
+            return iter(self.iterable if self.iterable is not None else ())
+
+        def update(self, *_args, **_kwargs):
+            return None
+
+        def close(self):
+            return None
+
+    def tqdm(iterable=None, *args, **kwargs):
+        return _NoOpTqdm(iterable, *args, **kwargs)
+>>>>>>> Stashed changes:submission_ready/scripts/train_ppo.py
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SRC_ROOT = PROJECT_ROOT / "src"
@@ -28,6 +55,12 @@ RESULT_FIELDS = [
 
 
 def _load_ppo():
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/scripts/train_ppo.py
+=======
+    """Import stable-baselines3 only when we actually train."""
+
+    # Import PPO only when needed.
+>>>>>>> Stashed changes:submission_ready/scripts/train_ppo.py
     try:
         from stable_baselines3 import PPO
     except ImportError as exc:  # pragma: no cover
@@ -38,6 +71,12 @@ def _load_ppo():
 
 
 def load_shock_multiplier(calibration_path: Path) -> int:
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/scripts/train_ppo.py
+=======
+    """Use the same shock level chosen by the baseline script."""
+
+    # Keep runs aligned with calibration.
+>>>>>>> Stashed changes:submission_ready/scripts/train_ppo.py
     if not calibration_path.exists():
         return DEFAULT_CONFIG.shock_multiplier
     payload = json.loads(calibration_path.read_text(encoding="utf-8"))
@@ -54,9 +93,23 @@ def train_and_evaluate_ppo(
     config: DispatchConfig = DEFAULT_CONFIG,
     show_progress: bool = True,
 ) -> tuple[dict[str, float | str], list[float]]:
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/scripts/train_ppo.py
     PPO = _load_ppo()
     from stable_baselines3.common.callbacks import BaseCallback
 
+=======
+    """Train one PPO model, then run one deterministic evaluation episode."""
+
+    PPO = _load_ppo()
+    try:
+        from stable_baselines3.common.callbacks import BaseCallback
+    except ImportError:  # pragma: no cover
+        class BaseCallback:
+            def __init__(self, *args, **kwargs):
+                pass
+
+    # Train one scene/alpha pair.
+>>>>>>> Stashed changes:submission_ready/scripts/train_ppo.py
     env = FairDispatchEnv(
         config=config,
         scene=scene,
@@ -64,7 +117,11 @@ def train_and_evaluate_ppo(
         shock_multiplier=shock_multiplier,
     )
 
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/scripts/train_ppo.py
     # 创建进度条回调
+=======
+    # Show progress without extra logs.
+>>>>>>> Stashed changes:submission_ready/scripts/train_ppo.py
     class TqdmCallback(BaseCallback):
         def __init__(self, total_timesteps: int, desc: str = "Training"):
             super().__init__()
@@ -85,6 +142,10 @@ def train_and_evaluate_ppo(
             if self.pbar:
                 self.pbar.close()
 
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/scripts/train_ppo.py
+=======
+    # Train first, then score once.
+>>>>>>> Stashed changes:submission_ready/scripts/train_ppo.py
     model = PPO("MlpPolicy", env, verbose=0, seed=seed)
     callback = TqdmCallback(total_timesteps, desc=f"PPO α={alpha} {scene}")
     model.learn(total_timesteps=total_timesteps, callback=callback)
@@ -111,6 +172,10 @@ def train_and_evaluate_ppo(
 
 
 def write_results(rows: list[dict[str, float | str]], output_path: Path) -> None:
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/scripts/train_ppo.py
+=======
+    # Save run summaries.
+>>>>>>> Stashed changes:submission_ready/scripts/train_ppo.py
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=RESULT_FIELDS)
@@ -121,6 +186,10 @@ def write_results(rows: list[dict[str, float | str]], output_path: Path) -> None
 def write_income_snapshot(
     rows_with_incomes: list[tuple[dict[str, float | str], list[float]]], output_path: Path
 ) -> None:
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/scripts/train_ppo.py
+=======
+    # Keep only shock incomes.
+>>>>>>> Stashed changes:submission_ready/scripts/train_ppo.py
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(
@@ -174,6 +243,10 @@ def main() -> None:
         for scene in ("normal", "shock")
     ]
 
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/scripts/train_ppo.py
+=======
+    # Sweep every scene/alpha pair.
+>>>>>>> Stashed changes:submission_ready/scripts/train_ppo.py
     for alpha, scene in tqdm(experiments, desc="训练 PPO", unit="exp"):
         rows_with_incomes.append(
             train_and_evaluate_ppo(

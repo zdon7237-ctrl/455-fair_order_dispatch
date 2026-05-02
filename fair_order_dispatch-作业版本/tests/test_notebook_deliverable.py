@@ -2,11 +2,15 @@ import json
 from pathlib import Path
 
 
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/tests/test_notebook_deliverable.py
 NOTEBOOK_PATH = (
     Path(__file__).resolve().parents[1]
     / "notebooks"
     / "fair_order_dispatch_report.ipynb"
 )
+=======
+NOTEBOOK_PATH = Path(__file__).resolve().parents[1] / "final_submission_en.ipynb"
+>>>>>>> Stashed changes:submission_ready/tests/test_notebook_deliverable.py
 
 
 def _load_notebook() -> dict:
@@ -18,7 +22,11 @@ def test_notebook_has_required_sections():
     full_text = "\n".join("".join(cell.get("source", [])) for cell in notebook["cells"])
 
     required_sections = [
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/tests/test_notebook_deliverable.py
         "# Fair Order Dispatch Under Demand Shock",
+=======
+        "# Efficiency and Fairness in Order Dispatch Under Demand Shock",
+>>>>>>> Stashed changes:submission_ready/tests/test_notebook_deliverable.py
         "## Abstract",
         "## Problem Setup",
         "## Environment",

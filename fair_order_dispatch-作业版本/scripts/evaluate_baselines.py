@@ -1,3 +1,8 @@
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/scripts/evaluate_baselines.py
+=======
+"""Run the two rule baselines and save the calibration files."""
+
+>>>>>>> Stashed changes:submission_ready/scripts/evaluate_baselines.py
 from __future__ import annotations
 
 import argparse
@@ -38,6 +43,12 @@ def rollout_baseline(
     seed: int = 0,
     shock_multiplier: int | None = None,
 ) -> tuple[dict[str, float | str], list[float]]:
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/scripts/evaluate_baselines.py
+=======
+    """Run one baseline episode and keep the final driver incomes."""
+
+    # Roll one baseline episode.
+>>>>>>> Stashed changes:submission_ready/scripts/evaluate_baselines.py
     env = FairDispatchEnv(
         config=config,
         scene=scene,
@@ -49,6 +60,10 @@ def rollout_baseline(
     terminated = False
 
     while not terminated:
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/scripts/evaluate_baselines.py
+=======
+        # Demand sits in the middle slice.
+>>>>>>> Stashed changes:submission_ready/scripts/evaluate_baselines.py
         demand = observation[config.zone_count : config.zone_count * 2]
         if policy_name == "Local-First":
             action = local_first_logits(demand)
@@ -78,6 +93,12 @@ def calibrate_multiplier(
     *,
     config: DispatchConfig = DEFAULT_CONFIG,
 ) -> CalibrationDecision:
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/scripts/evaluate_baselines.py
+=======
+    """Check whether the default shock is strong enough for the experiment."""
+
+    # Measure the normal-vs-shock drop.
+>>>>>>> Stashed changes:submission_ready/scripts/evaluate_baselines.py
     normal_by_algorithm = {row["algorithm"]: row for row in normal_rows}
     gaps = {}
     for shock_row in shock_rows:
@@ -89,6 +110,10 @@ def calibrate_multiplier(
 
 
 def write_results(rows: list[dict[str, float | str]], output_path: Path) -> None:
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/scripts/evaluate_baselines.py
+=======
+    # Save summary rows.
+>>>>>>> Stashed changes:submission_ready/scripts/evaluate_baselines.py
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=RESULT_FIELDS)
@@ -97,6 +122,10 @@ def write_results(rows: list[dict[str, float | str]], output_path: Path) -> None
 
 
 def write_calibration(calibration: CalibrationDecision, output_path: Path) -> None:
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/scripts/evaluate_baselines.py
+=======
+    # Save the frozen shock setting.
+>>>>>>> Stashed changes:submission_ready/scripts/evaluate_baselines.py
     output_path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "original_multiplier": calibration.original_multiplier,
@@ -110,6 +139,12 @@ def write_calibration(calibration: CalibrationDecision, output_path: Path) -> No
 def write_income_snapshot(
     incomes_by_algorithm: dict[str, list[float]], output_path: Path
 ) -> None:
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/scripts/evaluate_baselines.py
+=======
+    """Write one shock income sample for the CDF plot."""
+
+    # Save shock incomes for the CDF.
+>>>>>>> Stashed changes:submission_ready/scripts/evaluate_baselines.py
     output_path.parent.mkdir(parents=True, exist_ok=True)
     with output_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=["algorithm", "driver_index", "income"])
@@ -146,6 +181,10 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
 
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/scripts/evaluate_baselines.py
+=======
+    # Run normal first.
+>>>>>>> Stashed changes:submission_ready/scripts/evaluate_baselines.py
     normal_results = [
         rollout_baseline("Local-First", "normal", seed=args.seed),
         rollout_baseline("Demand-Greedy", "normal", seed=args.seed),
@@ -159,6 +198,10 @@ def main() -> None:
 
     calibration = calibrate_multiplier(normal_rows, shock_rows)
     if calibration.promoted:
+<<<<<<< Updated upstream:fair_order_dispatch-作业版本/scripts/evaluate_baselines.py
+=======
+        # Re-run shock with the promoted multiplier.
+>>>>>>> Stashed changes:submission_ready/scripts/evaluate_baselines.py
         shock_results = [
             rollout_baseline(
                 "Local-First",
