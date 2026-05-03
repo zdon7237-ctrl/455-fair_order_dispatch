@@ -1,0 +1,6 @@
+{
+  "original_multiplier": 3,
+  "frozen_multiplier": 5,
+  "threshold": 0.05,
+  "promoted": true
+}
