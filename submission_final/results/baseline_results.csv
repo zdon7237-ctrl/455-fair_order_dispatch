@@ -1,3 +1,0 @@
-algorithm,scene,alpha,episode_revenue,final_episode_gini,final_episode_bottom20_income_mean,mean_completion_rate
-Local-First,shock,,1315.0,0.09648922686945505,16.916666666666668,0.9030106988805313
-Demand-Greedy,shock,,631.0,0.13082408874801899,7.083333333333333,0.3572197461234674
