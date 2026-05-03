@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 import sys
 from pathlib import Path
 
@@ -14,7 +15,13 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from scipy.stats import ttest_ind
+
+try:
+    from scipy.stats import t as student_t
+    from scipy.stats import ttest_rel
+except ImportError:  # pragma: no cover - Colab installs scipy, but keep local checks usable.
+    student_t = None
+    ttest_rel = None
 
 # Use project-local imports.
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -96,8 +103,157 @@ def compute_statistics(df: pd.DataFrame) -> pd.DataFrame:
     return summary_df
 
 
+def _regularized_beta(x: float, a: float, b: float) -> float:
+    """Return the regularized incomplete beta function without scipy."""
+
+    if x <= 0.0:
+        return 0.0
+    if x >= 1.0:
+        return 1.0
+
+    def beta_fraction(x_value: float, a_value: float, b_value: float) -> float:
+        max_iter = 200
+        eps = 3e-14
+        tiny = 1e-300
+        qab = a_value + b_value
+        qap = a_value + 1.0
+        qam = a_value - 1.0
+        c = 1.0
+        d = 1.0 - qab * x_value / qap
+        if abs(d) < tiny:
+            d = tiny
+        d = 1.0 / d
+        h = d
+
+        for m in range(1, max_iter + 1):
+            m2 = 2 * m
+            aa = m * (b_value - m) * x_value / ((qam + m2) * (a_value + m2))
+            d = 1.0 + aa * d
+            if abs(d) < tiny:
+                d = tiny
+            c = 1.0 + aa / c
+            if abs(c) < tiny:
+                c = tiny
+            d = 1.0 / d
+            h *= d * c
+
+            aa = -(
+                (a_value + m)
+                * (qab + m)
+                * x_value
+                / ((a_value + m2) * (qap + m2))
+            )
+            d = 1.0 + aa * d
+            if abs(d) < tiny:
+                d = tiny
+            c = 1.0 + aa / c
+            if abs(c) < tiny:
+                c = tiny
+            d = 1.0 / d
+            delta = d * c
+            h *= delta
+            if abs(delta - 1.0) < eps:
+                break
+        return h
+
+    log_beta_term = (
+        math.lgamma(a + b)
+        - math.lgamma(a)
+        - math.lgamma(b)
+        + a * np.log(x)
+        + b * np.log1p(-x)
+    )
+    beta_term = np.exp(log_beta_term)
+    if x < (a + 1.0) / (a + b + 2.0):
+        return beta_term * beta_fraction(x, a, b) / a
+    return 1.0 - beta_term * beta_fraction(1.0 - x, b, a) / b
+
+
+def _student_t_two_sided_p_value(t_statistic: float, degrees_of_freedom: int) -> float:
+    """Compute a two-sided Student t-test p-value."""
+
+    if student_t is not None:
+        return float(2.0 * student_t.sf(abs(t_statistic), degrees_of_freedom))
+    x = degrees_of_freedom / (degrees_of_freedom + t_statistic**2)
+    return float(_regularized_beta(x, degrees_of_freedom / 2.0, 0.5))
+
+
+def _student_t_cdf(t_statistic: float, degrees_of_freedom: int) -> float:
+    """Compute a Student t CDF for the scipy-free fallback."""
+
+    x = degrees_of_freedom / (degrees_of_freedom + t_statistic**2)
+    tail = 0.5 * _regularized_beta(x, degrees_of_freedom / 2.0, 0.5)
+    return 1.0 - tail if t_statistic >= 0 else tail
+
+
+def _student_t_critical_975(degrees_of_freedom: int) -> float:
+    """Return the 97.5% t critical value for a two-sided 95% CI."""
+
+    if student_t is not None:
+        return float(student_t.ppf(0.975, degrees_of_freedom))
+
+    low, high = 0.0, 20.0
+    for _ in range(80):
+        middle = (low + high) / 2.0
+        if _student_t_cdf(middle, degrees_of_freedom) < 0.975:
+            low = middle
+        else:
+            high = middle
+    return (low + high) / 2.0
+
+
+def paired_t_test(
+    ppo_values: np.ndarray,
+    baseline_values: np.ndarray,
+) -> tuple[float, float, float, float, float, float, float]:
+    """Run a paired t-test on PPO minus baseline values."""
+
+    differences = np.asarray(ppo_values, dtype=float) - np.asarray(baseline_values, dtype=float)
+    n = len(differences)
+    mean_difference = float(np.mean(differences))
+    diff_std = float(np.std(differences, ddof=1)) if n > 1 else 0.0
+
+    if n <= 1 or diff_std == 0.0:
+        t_statistic = 0.0 if mean_difference == 0.0 else np.inf
+        p_value = 1.0 if mean_difference == 0.0 else 0.0
+        ci95_low = mean_difference
+        ci95_high = mean_difference
+        effect_size = 0.0 if diff_std == 0.0 else mean_difference / diff_std
+        return (
+            mean_difference,
+            diff_std,
+            ci95_low,
+            ci95_high,
+            float(t_statistic),
+            float(p_value),
+            float(effect_size),
+        )
+
+    standard_error = diff_std / np.sqrt(n)
+    degrees_of_freedom = n - 1
+    t_statistic = mean_difference / standard_error
+    if ttest_rel is not None:
+        p_value = float(ttest_rel(ppo_values, baseline_values).pvalue)
+    else:
+        p_value = _student_t_two_sided_p_value(t_statistic, degrees_of_freedom)
+    t_critical = _student_t_critical_975(degrees_of_freedom)
+    ci95_low = mean_difference - t_critical * standard_error
+    ci95_high = mean_difference + t_critical * standard_error
+    effect_size = mean_difference / diff_std
+
+    return (
+        mean_difference,
+        diff_std,
+        float(ci95_low),
+        float(ci95_high),
+        float(t_statistic),
+        float(p_value),
+        float(effect_size),
+    )
+
+
 def significance_tests(df: pd.DataFrame, alpha_value: float = 0.2) -> pd.DataFrame:
-    """Compare PPO against the baselines."""
+    """Compare PPO against the baselines with paired per-seed tests."""
     results = []
 
     # Pick one PPO alpha.
@@ -130,31 +286,54 @@ def significance_tests(df: pd.DataFrame, alpha_value: float = 0.2) -> pd.DataFra
                 continue
 
             for metric_col, metric_name in metrics:
-                ppo_values = ppo_scene[metric_col].values
-                baseline_values = baseline_scene[metric_col].values
-
-                # Two-sample t-test.
-                t_stat, p_value = ttest_ind(ppo_values, baseline_values)
-
-                # Cohen's d.
-                pooled_std = np.sqrt(
-                    ((len(ppo_values) - 1) * np.var(ppo_values, ddof=1) +
-                     (len(baseline_values) - 1) * np.var(baseline_values, ddof=1)) /
-                    (len(ppo_values) + len(baseline_values) - 2)
+                paired_df = (
+                    ppo_scene[['seed', metric_col]]
+                    .rename(columns={metric_col: 'ppo_value'})
+                    .merge(
+                        baseline_scene[['seed', metric_col]].rename(
+                            columns={metric_col: 'baseline_value'}
+                        ),
+                        on='seed',
+                        how='inner',
+                    )
+                    .sort_values('seed')
                 )
-                cohens_d = (np.mean(ppo_values) - np.mean(baseline_values)) / pooled_std if pooled_std > 0 else 0
+
+                if len(paired_df) < min(len(ppo_scene), len(baseline_scene)):
+                    print(
+                        f"警告: {scene} 场景下 PPO 和 {baseline} 的 seed 未完全匹配，"
+                        f"仅使用 {len(paired_df)} 个成对 seed"
+                    )
+
+                ppo_values = paired_df['ppo_value'].values
+                baseline_values = paired_df['baseline_value'].values
+                (
+                    mean_difference,
+                    diff_std,
+                    ci95_low,
+                    ci95_high,
+                    t_stat,
+                    p_value,
+                    effect_size,
+                ) = paired_t_test(ppo_values, baseline_values)
 
                 results.append({
                     'scene': scene,
                     'metric': metric_name,
                     'comparison': f'PPO(α={alpha_value}) vs {baseline}',
+                    'test_type': 'paired t-test by seed',
                     'ppo_mean': np.mean(ppo_values),
                     'ppo_std': np.std(ppo_values, ddof=1),
                     'baseline_mean': np.mean(baseline_values),
                     'baseline_std': np.std(baseline_values, ddof=1),
+                    'mean_difference': mean_difference,
+                    'diff_std': diff_std,
+                    'ci95_low': ci95_low,
+                    'ci95_high': ci95_high,
                     't_statistic': t_stat,
                     'p_value': p_value,
-                    'cohens_d': cohens_d,
+                    'effect_size': effect_size,
+                    'cohens_d': effect_size,
                     'significant': 'Yes' if p_value < 0.05 else 'No',
                     'ppo_n': len(ppo_values),
                     'baseline_n': len(baseline_values),
@@ -225,11 +404,11 @@ def plot_revenue_comparison(df: pd.DataFrame, output_dir: Path) -> None:
 
         offset = width * (i - len(scenes) / 2 + 0.5)
         ax.bar(x + offset, means, width, yerr=errors,
-               label=f'{scene}场景', capsize=5, alpha=0.8)
+               label=f'{scene} scene', capsize=5, alpha=0.8)
 
-    ax.set_xlabel('算法', fontsize=12)
-    ax.set_ylabel('平台收入', fontsize=12)
-    ax.set_title('不同场景下的平台收入对比', fontsize=14, fontweight='bold')
+    ax.set_xlabel('Algorithm', fontsize=12)
+    ax.set_ylabel('Platform revenue', fontsize=12)
+    ax.set_title('Platform revenue by scene', fontsize=14, fontweight='bold')
     ax.set_xticks(x)
     ax.set_xticklabels(algorithms, rotation=15, ha='right')
     ax.legend()
@@ -258,11 +437,11 @@ def plot_gini_comparison(df: pd.DataFrame, output_dir: Path) -> None:
 
         offset = width * (i - len(scenes) / 2 + 0.5)
         ax.bar(x + offset, means, width, yerr=errors,
-               label=f'{scene}场景', capsize=5, alpha=0.8)
+               label=f'{scene} scene', capsize=5, alpha=0.8)
 
-    ax.set_xlabel('算法', fontsize=12)
-    ax.set_ylabel('基尼系数', fontsize=12)
-    ax.set_title('不同场景下的公平性对比（基尼系数）', fontsize=14, fontweight='bold')
+    ax.set_xlabel('Algorithm', fontsize=12)
+    ax.set_ylabel('Final episode Gini', fontsize=12)
+    ax.set_title('Final episode Gini by scene', fontsize=14, fontweight='bold')
     ax.set_xticks(x)
     ax.set_xticklabels(algorithms, rotation=15, ha='right')
     ax.legend()
@@ -299,10 +478,10 @@ def plot_alpha_tradeoff_with_errors(ppo_df: pd.DataFrame, output_dir: Path) -> N
             label=f"α={row['alpha']:.1f}"
         )
 
-    ax.set_xlabel('基尼系数（公平性）', fontsize=12)
-    ax.set_ylabel('平台收入（效率）', fontsize=12)
-    ax.set_title('PPO算法的效率-公平性权衡（shock场景）', fontsize=14, fontweight='bold')
-    ax.legend(title='Alpha参数')
+    ax.set_xlabel('Final episode Gini', fontsize=12)
+    ax.set_ylabel('Platform revenue', fontsize=12)
+    ax.set_title('PPO efficiency-fairness trade-off in the shock scene', fontsize=14, fontweight='bold')
+    ax.legend(title='Alpha')
     ax.grid(alpha=0.3)
 
     plt.tight_layout()
@@ -358,9 +537,9 @@ def plot_income_cdf(
         y_values = [(index + 1) / len(sorted_values) for index in range(len(sorted_values))]
         ax.step(sorted_values, y_values, where="post", label=algorithm)
 
-    ax.set_xlabel("司机累计收入", fontsize=12)
+    ax.set_xlabel("Driver cumulative income", fontsize=12)
     ax.set_ylabel("CDF", fontsize=12)
-    ax.set_title("Shock 场景下司机收入分布", fontsize=14, fontweight="bold")
+    ax.set_title("Driver income distribution in the shock scene", fontsize=14, fontweight="bold")
     ax.legend()
     ax.grid(alpha=0.3)
 
@@ -456,7 +635,10 @@ def main() -> None:
         for _, row in test_df.iterrows():
             sig_mark = "***" if row['p_value'] < 0.001 else "**" if row['p_value'] < 0.01 else "*" if row['p_value'] < 0.05 else ""
             print(f"    {row['scene']} - {row['metric']}: {row['comparison']}")
-            print(f"      t={row['t_statistic']:.3f}, p={row['p_value']:.4f} {sig_mark}, d={row['cohens_d']:.3f}")
+            print(
+                f"      paired t={row['t_statistic']:.3f}, "
+                f"p={row['p_value']:.4f} {sig_mark}, dz={row['effect_size']:.3f}"
+            )
 
         # 4. Draw the figures.
         print("\n[4/5] 绘制带误差棒的图表...")
